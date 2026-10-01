@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>너구나 - AI 그림 찾기</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#5b7a8c;--ink:#fdfaf2;--panel:#486474;--accent:#f2c230;--red:#e5484d;--ok:#3fbf7f;--paper:#fffdf6;--pen:#23303a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#26343d;--panel:#1c2830}}
+:root[data-theme="dark"]{--bg:#26343d;--panel:#1c2830}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:'Jua','Noto Sans KR','Malgun Gothic',sans-serif;-webkit-user-select:none;user-select:none}
+.screen{display:none;max-width:560px;margin:0 auto;padding:14px;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.screen.on{display:flex}
+h1{font-size:64px;margin:6px 0 0;color:var(--accent);letter-spacing:2px;transform:rotate(-3deg)}
+h2{font-size:26px;margin:0}
+p{margin:0;font-size:18px;line-height:1.5}
+.panel{background:var(--panel);border-radius:14px;padding:14px 18px;width:100%}
+.btn{font:inherit;font-size:24px;padding:12px 34px;border:0;border-radius:14px;background:var(--accent);color:#2b2208;cursor:pointer;box-shadow:0 5px 0 #b48f10}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 #b48f10}
+.btn:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.hud{display:flex;justify-content:space-between;width:100%;font-size:19px;gap:8px}
+.hud span{background:var(--panel);padding:4px 12px;border-radius:20px}
+.bar{width:100%;height:14px;background:var(--panel);border-radius:8px;overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:var(--accent)}
+.tm{font-size:22px}
+.word{font-size:38px;color:var(--accent)}
+.book{background:var(--paper);border-radius:10px;padding:20px 8px 8px;position:relative;box-shadow:0 5px 0 rgba(0,0,0,.25);color:var(--pen)}
+.book::before{content:"";position:absolute;top:5px;left:8px;right:8px;height:10px;background:radial-gradient(circle,#3a4650 3.5px,transparent 4.5px) 0 0/18px 10px repeat-x}
+canvas{display:block;width:100%;aspect-ratio:1;background:#fff;border:1px dashed #c9c4b4;border-radius:4px;touch-action:none}
+#bigbook{width:min(92vw,50vh,420px)}
+#bigbook canvas{cursor:crosshair}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%}
+.card{cursor:pointer;transition:transform .12s;border:4px solid transparent;border-radius:14px;padding:2px}
+.card:active{transform:scale(.97)}
+.card.sel{border-color:var(--accent)}
+.card.ai{border-color:var(--red)}
+.card.shake{animation:sh .3s}
+@keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.lab{font-size:18px;margin-top:6px;min-height:50px}
+.tag{display:inline-block;background:#e9e4d2;border-radius:12px;padding:0 8px;margin:2px;font-size:15px}
+.big{font-size:80px;line-height:1}
+.taunt{font-size:28px;color:var(--accent);line-height:1.4}
+.row{display:flex;gap:14px;justify-content:center;font-size:17px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="screen on" id="start">
+  <h1>너구나</h1>
+  <div class="big">🦝✏️🤖</div>
+  <p>제시어를 그린 스케치북 중에서<br>AI가 그린 그림을 찾아내세요!</p>
+  <div class="panel">
+    <p>1. 10초 동안 마우스나 손가락으로 제시어를 그려요 ✏️</p>
+    <p>2. 10초 안에 AI의 그림이라고 생각하는 스케치북을 골라요 🗳️</p>
+    <p>3. 참가자 3명 중 과반수(2명)가 AI를 찾으면 성공!</p>
+    <p style="font-size:15px;margin-top:6px">PC: 마우스로 그리기, 숫자키 1~4로 투표, Enter로 진행</p>
+  </div>
+  <button class="btn" id="startBtn">시작하기</button>
+</div>
+
+<div class="screen" id="draw">
+  <div class="hud"><span id="h1a"></span><span id="h1b"></span></div>
+  <div class="word" id="word"></div>
+  <div class="bar"><i id="bar1"></i></div>
+  <div class="tm" id="tm1"></div>
+  <div class="book" id="bigbook"><canvas id="cv" width="600" height="600"></canvas></div>
+  <div class="row"><span>🧑‍🎨 민수 그리는 중 ✏️</span><span>👧 지아 그리는 중 ✏️</span><span>🤖 AI 그리는 중 ✏️</span></div>
+</div>
+
+<div class="screen" id="vote">
+  <div class="hud"><span id="h2a"></span><span id="h2b"></span></div>
+  <h2 id="vtitle">누가 AI일까? 🤖</h2>
+  <div class="bar" id="barwrap"><i id="bar2"></i></div>
+  <div class="tm" id="tm2"></div>
+  <div class="grid" id="grid"></div>
+  <div class="panel" id="msg" style="display:none"></div>
+  <button class="btn" id="nextBtn" style="display:none"></button>
+</div>
+
+<div class="screen" id="over">
+  <h2>게임 오버</h2>
+  <div class="big">🤖</div>
+  <div class="taunt" id="taunt"></div>
+  <div class="panel">
+    <p>도달한 라운드: <b id="ovr"></b></p>
+    <p>최종 점수: <b id="ovs"></b>점</p>
+  </div>
+  <button class="btn" id="againBtn">다시 하기</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id),S=300;
+const circ=(cx,cy,r,n=28)=>Array.from({length:n+1},(_,i)=>[cx+r*Math.cos(i/n*6.2832),cy+r*Math.sin(i/n*6.2832)]);
+const ell=(cx,cy,rx,ry,n=28)=>Array.from({length:n+1},(_,i)=>[cx+rx*Math.cos(i/n*6.2832),cy+ry*Math.sin(i/n*6.2832)]);
+const WORDS=[
+ {w:'집',e:'🏠',s:[[[.15,.5],[.85,.5],[.85,.88],[.15,.88],[.15,.5]],[[.08,.52],[.5,.14],[.92,.52]],[[.44,.88],[.44,.66],[.58,.66],[.58,.88]],[[.66,.58],[.78,.58],[.78,.7],[.66,.7],[.66,.58]]]},
+ {w:'해',e:'☀️',s:[circ(.5,.5,.2),[[.5,.16],[.5,.06]],[[.5,.84],[.5,.94]],[[.16,.5],[.06,.5]],[[.84,.5],[.94,.5]],[[.26,.26],[.19,.19]],[[.74,.26],[.81,.19]],[[.26,.74],[.19,.81]],[[.74,.74],[.81,.81]]]},
+ {w:'나무',e:'🌳',s:[[[.44,.92],[.44,.58]],[[.56,.92],[.56,.58]],ell(.5,.35,.3,.24)]},
+ {w:'물고기',e:'🐟',s:[ell(.42,.5,.3,.18),[[.72,.5],[.92,.3],[.92,.7],[.72,.5]],circ(.3,.46,.025,8)]},
+ {w:'고양이',e:'🐱',s:[ell(.5,.58,.3,.26),[[.22,.5],[.22,.15],[.42,.34]],[[.78,.5],[.78,.15],[.58,.34]],circ(.4,.54,.03,8),circ(.6,.54,.03,8),[[.47,.64],[.53,.64],[.5,.68],[.47,.64]],[[.1,.6],[.3,.64]],[[.9,.6],[.7,.64]]]},
+ {w:'꽃',e:'🌸',s:[circ(.5,.35,.07,12),circ(.5,.19,.09,14),circ(.34,.35,.09,14),circ(.66,.35,.09,14),circ(.5,.51,.09,14),[[.5,.6],[.5,.92]],[[.5,.78],[.7,.68],[.5,.86]]]}
+];
+const TAUNTS=['ㅋㅋㅋㅋ 이것도 못 찾아? 너구나~ 😜','내 그림이 더 사람 같았지? 메롱 🤪','네 그림체 완전 내 거 됐다 ㅋㅋ 🤖','AI한테 속다니, 눈이 어디 달린 거야? 😆','다음엔 좀 더 열심히 보시지~ 🤭'];
+const rnd=(a,b)=>a+Math.random()*(b-a),lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function build(t,size,cx,cy,amp,rot){
+ return t.map(st=>{
+  const pts=st.map(p=>{const x=(p[0]-.5)*size,y=(p[1]-.5)*size,c=Math.cos(rot),s=Math.sin(rot);return[cx+x*c-y*s,cy+x*s+y*c]});
+  const out=[],closed=Math.hypot(pts[0][0]-pts[pts.length-1][0],pts[0][1]-pts[pts.length-1][1])<2;
+  let nx=0,ny=0,dx=0,dy=0;
+  const sx=(Math.random()-.5)*amp*2.5,sy=(Math.random()-.5)*amp*2.5;
+  for(let i=0;i<pts.length-1;i++){
+   const a=pts[i],b=pts[i+1],n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/rnd(4,10)));
+   for(let k=0;k<n;k++){
+    nx=nx*.6+(Math.random()-.5)*amp*1.4;ny=ny*.6+(Math.random()-.5)*amp*1.4;
+    dx=dx*.93+(Math.random()-.5)*amp*.9;dy=dy*.93+(Math.random()-.5)*amp*.9;
+    out.push([a[0]+(b[0]-a[0])*k/n+nx+dx+sx,a[1]+(b[1]-a[1])*k/n+ny+dy+sy]);
+   }
+  }
+  const e=pts[pts.length-1],g=closed?amp*3:amp*1.5;
+  out.push([e[0]+nx+dx+sx+(Math.random()-.5)*g,e[1]+ny+dy+sy+(Math.random()-.5)*g]);
+  return out;
+ });
+}
+function analyze(st){
+ const pts=st.flat();
+ if(!pts.length)return{amp:2,cx:150,cy:150,size:200};
+ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+ pts.forEach(p=>{x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1])});
+ let sum=0,cnt=0;
+ st.forEach(s=>{
+  const k=[s[0]];
+  for(const p of s){const l=k[k.length-1];if(Math.hypot(p[0]-l[0],p[1]-l[1])>=6)k.push(p)}
+  for(let i=2;i<k.length;i++){
+   const a1=Math.atan2(k[i-1][1]-k[i-2][1],k[i-1][0]-k[i-2][0]),a2=Math.atan2(k[i][1]-k[i-1][1],k[i][0]-k[i-1][0]);
+   let d=Math.abs(a2-a1);if(d>Math.PI)d=2*Math.PI-d;sum+=d;cnt++;
+  }
+ });
+ return{amp:clamp((cnt?sum/cnt:.4)*4,.8,5),cx:(x0+x1)/2,cy:(y0+y1)/2,size:clamp(Math.max(x1-x0,y1-y0)/.8,140,290)};
+}
+function paint(cv,strokes,w){
+ const c=cv.getContext('2d');
+ c.setTransform(2,0,0,2,0,0);c.clearRect(0,0,S,S);
+ c.lineWidth=w;c.lineCap=c.lineJoin='round';c.strokeStyle=c.fillStyle='#23303a';
+ strokes.forEach(s=>{
+  if(s.length===1){c.beginPath();c.arc(s[0][0],s[0][1],w/2,0,7);c.fill();return}
+  c.beginPath();c.moveTo(s[0][0],s[0][1]);
+  for(let i=1;i<s.length;i++)c.lineTo(s[i][0],s[i][1]);
+  c.stroke();
+ });
+}
+
+let G={},tid;
+function show(id){document.querySelectorAll('.screen').forEach(e=>e.classList.toggle('on',e.id===id));G.screen=id}
+function timer(sec,bar,txt,end){
+ clearInterval(tid);const t0=Date.now();
+ const tick=()=>{
+  const l=Math.max(0,sec-(Date.now()-t0)/1000);
+  bar.style.width=l/sec*100+'%';bar.style.background=l<3?'var(--red)':'var(--accent)';
+  txt.textContent='남은 시간 '+Math.ceil(l)+'초';
+  if(l<=0){clearInterval(tid);end()}
+ };
+ tick();tid=setInterval(tick,100);
+}
+const mimic=()=>Math.min(1,(G.round-1)*.25);
+function hud(a,b){
+ a.textContent='라운드 '+G.round+' · 점수 '+G.score;
+ b.textContent='AI 모방도 '+Math.round(mimic()*100)+'%';
+}
+
+function newGame(){
+ G={round:0,score:0,used:[],screen:'draw'};
+ nextRound();
+}
+function nextRound(){
+ G.round++;
+ if(G.used.length>=WORDS.length)G.used=[];
+ let i;do{i=Math.floor(Math.random()*WORDS.length)}while(G.used.includes(i));
+ G.used.push(i);G.word=WORDS[i];G.mine=[];G.phase='draw';
+ show('draw');hud($('h1a'),$('h1b'));
+ $('word').textContent='제시어: '+G.word.e+' '+G.word.w;
+ paint($('cv'),[],4);
+ timer(10,$('bar1'),$('tm1'),startVote);
+}
+
+const cv=$('cv');let cur=null;
+const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)/r.width*S,(e.clientY-r.top)/r.height*S]};
+cv.addEventListener('pointerdown',e=>{
+ if(G.phase!=='draw')return;
+ cv.setPointerCapture(e.pointerId);cur=[pt(e)];G.mine.push(cur);paint(cv,G.mine,4);
+});
+cv.addEventListener('pointermove',e=>{if(cur&&G.phase==='draw'){cur.push(pt(e));paint(cv,G.mine,4)}});
+['pointerup','pointercancel'].forEach(n=>cv.addEventListener(n,()=>{cur=null}));
+
+function startVote(){
+ cur=null;G.phase='vote';G.myVote=-1;
+ const st=analyze(G.mine),m=mimic(),t=G.word.s;
+ const ai={k:'ai',w:lerp(rnd(2.8,4.4),4,m),s:build(t,lerp(rnd(180,250),st.size,m),lerp(150+rnd(-14,14),st.cx,m),lerp(150+rnd(-14,14),st.cy,m),lerp(rnd(2.2,3.6),st.amp,m),rnd(-.1,.1))};
+ const bot=n=>({k:n,w:rnd(2.6,4.6),s:build(t,rnd(170,250),150+rnd(-14,14),150+rnd(-14,14),rnd(1.4,3.6),rnd(-.1,.1))});
+ G.books=[{k:'me',w:4,s:G.mine},bot('a'),bot('b'),ai].sort(()=>Math.random()-.5);
+ show('vote');hud($('h2a'),$('h2b'));
+ $('vtitle').textContent='누가 AI일까? 🤖';
+ $('barwrap').style.display='';$('tm2').style.display='';
+ $('msg').style.display=$('nextBtn').style.display='none';
+ const g=$('grid');g.innerHTML='';
+ G.books.forEach((b,i)=>{
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML='<div class="book"><canvas width="600" height="600"></canvas></div><div class="lab">'+(b.k==='me'?'🙋 내 스케치북':(i+1)+'번 스케치북')+'</div>';
+  paint(d.querySelector('canvas'),b.s,b.w);
+  d.onclick=()=>vote(i);g.appendChild(d);
+ });
+ timer(10,$('bar2'),$('tm2'),endVote);
+}
+function vote(i){
+ if(G.phase!=='vote'||!G.books[i])return;
+ const c=$('grid').children[i];
+ if(G.books[i].k==='me'){c.classList.add('shake');setTimeout(()=>c.classList.remove('shake'),300);return}
+ G.myVote=i;
+ [...$('grid').children].forEach((x,j)=>{x.classList.toggle('sel',j===i);x.querySelector('.lab').textContent=(G.books[j].k==='me'?'🙋 내 스케치북':(j+1)+'번 스케치북')+(j===i?' ✅ 내 선택':'')});
+}
+function endVote(){
+ G.phase='reveal';
+ const ki=k=>G.books.findIndex(b=>b.k===k),aiI=ki('ai');
+ const p=Math.max(.25,.9-.17*(G.round-1));
+ const voters=[{n:'나',e:'🙋',i:G.myVote,self:ki('me')}];
+ [['a','민수','🧑‍🎨'],['b','지아','👧']].forEach(([k,n,e])=>{
+  const self=ki(k);let i;
+  if(Math.random()<p)i=aiI;
+  else{const o=G.books.map((_,j)=>j).filter(j=>j!==self&&j!==aiI);i=o[Math.floor(Math.random()*o.length)]}
+  voters.push({n,e,i,self});
+ });
+ const found=voters.filter(v=>v.i===aiI).length,ok=found>=2;
+ const names={me:'내 그림',a:'민수의 그림',b:'지아의 그림',ai:'🤖 AI의 그림!'};
+ [...$('grid').children].forEach((c,j)=>{
+  const b=G.books[j];c.classList.remove('sel');c.classList.toggle('ai',b.k==='ai');
+  const vs=voters.filter(v=>v.i===j).map(v=>'<span class="tag">'+v.e+' '+v.n+'</span>').join('');
+  c.querySelector('.lab').innerHTML='<b>'+names[b.k]+'</b><br>'+(vs||'<span class="tag">투표 없음</span>');
+ });
+ $('vtitle').textContent='정답 공개! 🔍';
+ $('barwrap').style.display=$('tm2').style.display='none';
+ if(ok)G.score+=100;
+ hud($('h2a'),$('h2b'));
+ $('msg').style.display='';
+ $('msg').innerHTML='<h2>'+(ok?'🎉 성공!':'😵 실패...')+'</h2><p>AI를 찾은 참가자: '+found+' / 3명'+(ok?' (과반수 달성! +100점)':' (과반수 미달)')+'</p>';
+ const nb=$('nextBtn');nb.style.display='';
+ nb.textContent=ok?'다음 라운드':'결과 보기';
+ nb.onclick=ok?nextRound:gameOver;
+}
+function gameOver(){
+ G.phase='over';show('over');
+ $('taunt').textContent=TAUNTS[Math.floor(Math.random()*TAUNTS.length)];
+ $('ovr').textContent=G.round+'라운드';$('ovs').textContent=G.score;
+}
+$('startBtn').onclick=newGame;
+$('againBtn').onclick=newGame;
+document.addEventListener('keydown',e=>{
+ if(G.screen==='vote'&&G.phase==='vote'&&/^[1-4]$/.test(e.key)){vote(+e.key-1);return}
+ if(e.key==='Enter'||e.key===' '){
+  const b=G.screen==='over'?$('againBtn'):G.screen==='vote'&&G.phase==='reveal'?$('nextBtn'):!G.screen||G.screen==='start'?$('startBtn'):null;
+  if(b){e.preventDefault();b.click()}
+ }
+});
+</script>
+</body>
+</html>
